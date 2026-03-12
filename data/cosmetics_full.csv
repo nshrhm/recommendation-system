@@ -1,0 +1,201 @@
+user_id,item_id,rating,category
+A,0,9.4,Makeup Bases
+A,1,5.5,Makeup Bases
+A,2,9.8,Makeup Bases
+A,3,9.6,Makeup Bases
+A,4,3.8,Makeup Bases
+A,5,5.7,Powders
+A,6,3.7,Powders
+A,7,5.5,Powders
+A,8,7.8,Powders
+A,9,1.9,Foundations
+A,10,3.4,Foundations
+A,11,5.3,Foundations
+A,12,6.8,Foundations
+A,13,4.9,Foundations
+A,14,4.8,Foundations
+A,15,4.3,Foundations
+A,16,3.5,Foundations
+A,17,4.4,Foundations
+A,18,6.6,Foundations
+A,19,8.5,Foundations
+A,20,5.2,Lipsticks
+A,21,4.4,Lipsticks
+A,22,4.0,Lipsticks
+A,23,4.4,Lipsticks
+A,24,5.8,Lipsticks
+A,25,7.2,Lipsticks
+A,26,7.6,Lipsticks
+A,27,7.5,Lipsticks
+A,28,5.7,Lipsticks
+A,29,5.8,Lipsticks
+A,30,6.0,Eyeshadows
+A,31,2.9,Eyeshadows
+A,32,4.9,Eyeshadows
+A,33,4.4,Eyeshadows
+A,34,5.5,Eyeshadows
+A,35,5.2,Eyeshadows
+A,36,8.2,Eyeshadows
+A,37,4.1,Eyeshadows
+A,38,4.9,Eyeshadows
+A,39,7.6,Eyeshadows
+A,40,6.9,Eyeshadows
+A,41,3.2,Eyeshadows
+A,42,5.8,Eyeshadows
+A,43,6.2,Eyeshadows
+A,44,5.6,Eyeshadows
+A,45,8.1,Eyeliners
+A,46,7.4,Eyeliners
+A,47,10.0,Eyeliners
+A,48,4.2,Eyeliners
+A,49,2.6,Eyeliners
+B,0,3.3,Makeup Bases
+B,1,5.8,Makeup Bases
+B,2,3.0,Makeup Bases
+B,3,7.9,Makeup Bases
+B,4,7.2,Makeup Bases
+B,5,5.8,Powders
+B,6,8.6,Powders
+B,7,5.9,Powders
+B,8,8.6,Powders
+B,9,3.9,Foundations
+B,10,8.7,Foundations
+B,11,3.3,Foundations
+B,12,6.0,Foundations
+B,13,5.1,Foundations
+B,14,8.4,Foundations
+B,15,6.8,Foundations
+B,16,4.3,Foundations
+B,17,4.5,Foundations
+B,18,6.8,Foundations
+B,19,7.4,Foundations
+B,20,6.3,Lipsticks
+B,21,9.2,Lipsticks
+B,22,5.7,Lipsticks
+B,23,8.0,Lipsticks
+B,24,4.9,Lipsticks
+B,25,7.2,Lipsticks
+B,26,6.3,Lipsticks
+B,27,9.1,Lipsticks
+B,28,6.5,Lipsticks
+B,29,7.8,Lipsticks
+B,30,5.3,Eyeshadows
+B,31,9.0,Eyeshadows
+B,32,6.6,Eyeshadows
+B,33,8.9,Eyeshadows
+B,34,4.3,Eyeshadows
+B,35,3.0,Eyeshadows
+B,36,6.9,Eyeshadows
+B,37,1.6,Eyeshadows
+B,38,5.2,Eyeshadows
+B,39,3.2,Eyeshadows
+B,40,3.6,Eyeshadows
+B,41,6.2,Eyeshadows
+B,42,6.8,Eyeshadows
+B,43,4.8,Eyeshadows
+B,44,4.0,Eyeshadows
+B,45,4.9,Eyeliners
+B,46,6.3,Eyeliners
+B,47,5.1,Eyeliners
+B,48,9.5,Eyeliners
+B,49,5.5,Eyeliners
+C,0,8.0,Makeup Bases
+C,1,4.4,Makeup Bases
+C,2,5.6,Makeup Bases
+C,3,5.4,Makeup Bases
+C,4,4.7,Makeup Bases
+C,5,6.7,Powders
+C,6,4.2,Powders
+C,7,5.9,Powders
+C,8,8.0,Powders
+C,9,5.0,Foundations
+C,10,5.6,Foundations
+C,11,4.3,Foundations
+C,12,2.6,Foundations
+C,13,8.0,Foundations
+C,14,9.1,Foundations
+C,15,4.7,Foundations
+C,16,7.8,Foundations
+C,17,7.8,Foundations
+C,18,8.4,Foundations
+C,19,8.6,Foundations
+C,20,9.7,Lipsticks
+C,21,8.4,Lipsticks
+C,22,3.4,Lipsticks
+C,23,6.3,Lipsticks
+C,24,4.7,Lipsticks
+C,25,6.3,Lipsticks
+C,26,7.7,Lipsticks
+C,27,5.4,Lipsticks
+C,28,7.5,Lipsticks
+C,29,7.2,Lipsticks
+C,30,3.9,Eyeshadows
+C,31,7.4,Eyeshadows
+C,32,2.0,Eyeshadows
+C,33,7.3,Eyeshadows
+C,34,6.8,Eyeshadows
+C,35,6.1,Eyeshadows
+C,36,8.4,Eyeshadows
+C,37,4.8,Eyeshadows
+C,38,4.0,Eyeshadows
+C,39,5.7,Eyeshadows
+C,40,5.9,Eyeshadows
+C,41,8.4,Eyeshadows
+C,42,9.0,Eyeshadows
+C,43,6.3,Eyeshadows
+C,44,7.6,Eyeshadows
+C,45,7.7,Eyeliners
+C,46,10.0,Eyeliners
+C,47,3.3,Eyeliners
+C,48,4.4,Eyeliners
+C,49,9.1,Eyeliners
+D,0,7.2,Makeup Bases
+D,1,3.4,Makeup Bases
+D,2,6.6,Makeup Bases
+D,3,10.0,Makeup Bases
+D,4,4.3,Makeup Bases
+D,5,3.4,Powders
+D,6,5.2,Powders
+D,7,5.9,Powders
+D,8,8.2,Powders
+D,9,8.7,Foundations
+D,10,3.4,Foundations
+D,11,6.5,Foundations
+D,12,5.5,Foundations
+D,13,8.3,Foundations
+D,14,8.8,Foundations
+D,15,6.4,Foundations
+D,16,6.1,Foundations
+D,17,5.6,Foundations
+D,18,4.1,Foundations
+D,19,3.9,Foundations
+D,20,6.6,Lipsticks
+D,21,6.8,Lipsticks
+D,22,7.0,Lipsticks
+D,23,8.8,Lipsticks
+D,24,3.7,Lipsticks
+D,25,4.4,Lipsticks
+D,26,4.3,Lipsticks
+D,27,4.1,Lipsticks
+D,28,4.9,Lipsticks
+D,29,3.7,Lipsticks
+D,30,4.6,Eyeshadows
+D,31,4.2,Eyeshadows
+D,32,6.4,Eyeshadows
+D,33,8.7,Eyeshadows
+D,34,5.3,Eyeshadows
+D,35,5.0,Eyeshadows
+D,36,4.4,Eyeshadows
+D,37,8.9,Eyeshadows
+D,38,5.1,Eyeshadows
+D,39,6.5,Eyeshadows
+D,40,4.1,Eyeshadows
+D,41,5.5,Eyeshadows
+D,42,4.3,Eyeshadows
+D,43,7.3,Eyeshadows
+D,44,7.1,Eyeshadows
+D,45,7.7,Eyeliners
+D,46,6.4,Eyeliners
+D,47,5.0,Eyeliners
+D,48,5.0,Eyeliners
+D,49,4.5,Eyeliners

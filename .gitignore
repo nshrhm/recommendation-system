@@ -1,0 +1,82 @@
+# Environment and local secrets
+.env
+.env.*
+venv/
+ENV/
+env/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Tool caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDEs and notebooks
+.idea/
+.vscode/
+.ipynb_checkpoints/
+*.ipynb
+
+# LaTeX and generated paper assets
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.log
+*.out
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+paper/
+
+# Experiment outputs and tracking
+mlruns/
+mlartifacts/
+results/
+
+# Project-internal notes not for GitHub
+AGENTS.md
+CLAUDE.md
+CHANGELOG.md
+PROJECT_SUMMARY.md
+docs/
+docs/CLAUDE.md
+docs/archive/
+docs/memo.md
+experiments/
+
+# OS and editor temp files
+.DS_Store
+Thumbs.db
+*~
+*.tmp
+*.bak
+*.swp

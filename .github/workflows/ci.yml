@@ -1,0 +1,148 @@
+name: CI - Tests and Code Quality
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run tests with pytest
+        run: |
+          pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8 mypy
+
+      - name: Check code formatting with Black
+        run: |
+          black --check src/ tests/
+
+      - name: Lint with flake8
+        run: |
+          flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 src/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
+
+      - name: Type check with mypy
+        run: |
+          mypy src/ --ignore-missing-imports
+        continue-on-error: true
+
+  experiments:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run experiments
+        run: |
+          python src/experiments/run_all_experiments.py --no-mlflow --seed 42
+
+      - name: Upload experiment results
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-results
+          path: |
+            results/comparison_report.txt
+            results/figures/*.pdf
+
+      - name: Check results consistency
+        run: |
+          echo "Checking if experiments produced valid results..."
+          python << 'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          # Find the most recent baseline results
+          results_dir = Path("results")
+          baseline_dirs = sorted([d for d in results_dir.glob("baseline_*") if d.is_dir()])
+
+          if not baseline_dirs:
+              print("Warning: No baseline results found, skipping consistency check")
+              exit(0)
+
+          latest_baseline = baseline_dirs[-1]
+          metrics_file = latest_baseline / "metrics.json"
+
+          if not metrics_file.exists():
+              print(f"Warning: No metrics.json in {latest_baseline}, skipping check")
+              exit(0)
+
+          with open(metrics_file) as f:
+              data = json.load(f)
+              # Handle both nested and flat metric structures
+              metrics = data.get("metrics", data)
+
+              if "rmse" in metrics:
+                  rmse = metrics["rmse"]
+                  print(f"✓ Baseline RMSE: {rmse:.4f}")
+                  # Sanity check: RMSE should be reasonable (not NaN, not too large)
+                  assert 0 < rmse < 100, f"RMSE out of expected range: {rmse}"
+                  print("✓ Results are consistent!")
+              else:
+                  print("Warning: No RMSE metric found, skipping validation")
+          EOF

@@ -1,0 +1,18 @@
+{
+  "n_users": 4,
+  "n_items": 50,
+  "n_ratings": 180,
+  "rating_scale": [
+    0,
+    10
+  ],
+  "categories": [
+    "Makeup Bases",
+    "Powders",
+    "Foundations",
+    "Lipsticks",
+    "Eyeshadows",
+    "Eyeliners"
+  ],
+  "sparsity": 0.09999999999999998
+}
