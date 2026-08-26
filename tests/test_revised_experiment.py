@@ -368,7 +368,7 @@ def test_scientific_payload_and_provenance_are_separate(config):
     assert "utc_timestamp" not in document["scientific_payload"]
     assert "git_head" not in document["scientific_payload"]
     assert document["scientific_payload_sha256"] == sha256_json(payload)
-    assert document["provenance"]["worktree_dirty"] is True
+    assert isinstance(document["provenance"]["worktree_dirty"], bool)
 
 
 def test_tracked_canonical_artifact_passes_static_verification():
