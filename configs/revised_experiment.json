@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "master_seed": 2604001,
+  "n_replicates": 50,
+  "rng": {
+    "seed_sequence_children": 51,
+    "replicate_child_streams": [
+      "dataset",
+      "split",
+      "feedback"
+    ],
+    "bit_generator": "PCG64",
+    "dataset_draw_order": [
+      "item_attractiveness[50]",
+      "category_preferences[4,6]",
+      "idiosyncratic_noise[4,50]"
+    ],
+    "bootstrap_child_index": 50
+  },
+  "data_generation": {
+    "n_users": 4,
+    "n_items": 50,
+    "rating_min": 0.0,
+    "rating_max": 10.0,
+    "round_ratings": false,
+    "item_attractiveness": {
+      "distribution": "uniform",
+      "low": 2.0,
+      "high": 8.0
+    },
+    "user_biases": {
+      "A": 0.5,
+      "B": 0.3,
+      "C": 0.0,
+      "D": -0.5
+    },
+    "category_preference": {
+      "distribution": "normal",
+      "mean": 0.0,
+      "std": 1.0
+    },
+    "idiosyncratic_noise": {
+      "distribution": "normal",
+      "mean": 0.0,
+      "std": 0.5
+    },
+    "categories": [
+      {"name": "Makeup Bases", "count": 5},
+      {"name": "Powders", "count": 4},
+      {"name": "Foundations", "count": 11},
+      {"name": "Lipsticks/Lip Gloss", "count": 10},
+      {"name": "Eyeshadows", "count": 15},
+      {"name": "Eyeliners", "count": 5}
+    ]
+  },
+  "split": {
+    "target_user": "A",
+    "train_items": 30,
+    "test_items": 20,
+    "reference_users": ["B", "C", "D"],
+    "missingness_representation": "explicit_boolean_observed_mask"
+  },
+  "methods": {
+    "ucf": {
+      "similarity": "cosine_common_observed",
+      "k": 3,
+      "no_neighbor_fallback": "target_user_observed_mean",
+      "prediction_clip": [0.0, 10.0]
+    },
+    "item_cf": {
+      "similarity": "cosine_reference_users",
+      "reference_users": ["B", "C", "D"],
+      "reference_vector_dimension": 3,
+      "k": 3,
+      "no_neighbor_fallback": "item_observed_mean",
+      "prediction_clip": [0.0, 10.0]
+    },
+    "hybrid_cf": {
+      "user_cf_weight": 0.5,
+      "item_cf_weight": 0.5,
+      "ranking_tie_break": "ascending_item_id"
+    },
+    "f1": {
+      "displayed_top_n": 10,
+      "output_type": "ranking_only",
+      "feedback_tie_break": "previous_hybrid_order",
+      "undisplayed_tail": "unchanged"
+    },
+    "f2": {
+      "base_prediction": "leave_one_out_hybrid_cf",
+      "propagation_k": 5,
+      "positive_similarities_only": true,
+      "similarity_tie_break": "ascending_item_id",
+      "zero_weight_fallback": 0.0,
+      "prediction_clip": [0.0, 10.0]
+    }
+  },
+  "feedback_sigmas": [0.0, 0.5, 1.0, 2.0],
+  "metrics": {
+    "primary": "ndcg@10",
+    "ranking_cutoffs": [5, 10, 20],
+    "gain": "linear_relevance",
+    "discount": "1/log2(position+1)",
+    "score_metrics": ["rmse", "mae"],
+    "score_methods": ["ucf", "hybrid_cf", "f2"],
+    "binary_metrics_enabled": false
+  },
+  "statistics": {
+    "observational_unit": "independent_replicate",
+    "primary_contrasts": [
+      {"id": "C1", "definition": "f1_ndcg@10_minus_hybrid_cf_ndcg@10"},
+      {"id": "C2", "definition": "f2_ndcg@10_minus_hybrid_cf_ndcg@10"},
+      {"id": "C3", "definition": "hybrid_cf_rmse_minus_f2_rmse"}
+    ],
+    "wilcoxon": {
+      "alternative": "two-sided",
+      "zero_method": "pratt",
+      "method": "approx",
+      "correction": false
+    },
+    "holm_family_alpha": 0.05,
+    "bootstrap_samples": 10000,
+    "bootstrap_confidence_level": 0.95,
+    "bootstrap_method": "percentile"
+  }
+}

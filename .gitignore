@@ -60,7 +60,10 @@ paper/
 # Experiment outputs and tracking
 mlruns/
 mlartifacts/
-results/
+results/*
+!results/revised_experiment/
+results/revised_experiment/*
+!results/revised_experiment/canonical_results.json
 
 # Project-internal notes not for GitHub
 AGENTS.md
@@ -71,7 +74,13 @@ docs/
 docs/CLAUDE.md
 docs/archive/
 docs/memo.md
-experiments/
+/experiments/
+
+# Only the revised public experiment runner is tracked. Historical local
+# runners remain ignored to avoid exposing obsolete workflows.
+src/experiments/*
+!src/experiments/__init__.py
+!src/experiments/run_revised_experiment.py
 
 # OS and editor temp files
 .DS_Store

@@ -30,6 +30,22 @@ COSMETICS_CATEGORIES = {
 
 USER_IDS = ["A", "B", "C", "D"]
 
+REVISED_CATEGORY_COUNTS = {
+    "Makeup Bases": 5,
+    "Powders": 4,
+    "Foundations": 11,
+    "Lipsticks/Lip Gloss": 10,
+    "Eyeshadows": 15,
+    "Eyeliners": 5,
+}
+
+REVISED_USER_BIASES = {
+    "A": 0.5,
+    "B": 0.3,
+    "C": 0.0,
+    "D": -0.5,
+}
+
 
 def load_cosmetics_dataset(filepath: str, format: str = "csv") -> pd.DataFrame:
     """
@@ -252,6 +268,98 @@ def generate_synthetic_data(
 
     df = pd.DataFrame(data)
     return df
+
+
+def revised_category_ids(
+    category_counts: Dict[str, int]
+) -> Tuple[np.ndarray, List[str]]:
+    """Return deterministic item-to-category IDs for the revised experiment."""
+    names = list(category_counts)
+    counts = [int(category_counts[name]) for name in names]
+    if len(names) != 6 or sum(counts) != 50 or any(count <= 0 for count in counts):
+        raise ValueError(
+            "Revised categories must contain six positive counts totaling 50"
+        )
+    return np.repeat(np.arange(len(names), dtype=np.int64), counts), names
+
+
+def generate_revised_synthetic_data(
+    rng: np.random.Generator,
+    *,
+    category_counts: Optional[Dict[str, int]] = None,
+    user_biases: Optional[Dict[str, float]] = None,
+    attractiveness_low: float = 2.0,
+    attractiveness_high: float = 8.0,
+    category_preference_std: float = 1.0,
+    idiosyncratic_noise_std: float = 0.5,
+    rating_min: float = 0.0,
+    rating_max: float = 10.0,
+) -> Dict[str, np.ndarray]:
+    """Generate one independent dataset for the revised experiment.
+
+    Draw order is deliberately fixed: item attractiveness, user-category
+    preferences, then user-item disturbances. All 200 values are observed;
+    missingness for User A is introduced later with an explicit Boolean mask.
+    """
+    category_counts = category_counts or REVISED_CATEGORY_COUNTS
+    user_biases = user_biases or REVISED_USER_BIASES
+    category_ids, category_names = revised_category_ids(category_counts)
+
+    if list(user_biases) != USER_IDS:
+        raise ValueError(f"user_biases must be ordered as {USER_IDS}")
+    if attractiveness_low >= attractiveness_high:
+        raise ValueError("attractiveness_low must be less than attractiveness_high")
+
+    item_attractiveness = rng.uniform(attractiveness_low, attractiveness_high, 50)
+    category_preferences = rng.normal(0.0, category_preference_std, (4, 6))
+    idiosyncratic_noise = rng.normal(0.0, idiosyncratic_noise_std, (4, 50))
+    bias_vector = np.asarray([user_biases[user] for user in USER_IDS], dtype=np.float64)
+
+    latent_ratings = (
+        item_attractiveness[np.newaxis, :]
+        + bias_vector[:, np.newaxis]
+        + category_preferences[:, category_ids]
+        + idiosyncratic_noise
+    )
+    ratings = np.clip(latent_ratings, rating_min, rating_max).astype(np.float64)
+    observed_mask = np.ones(ratings.shape, dtype=bool)
+
+    return {
+        "ratings": ratings,
+        "observed_mask": observed_mask,
+        "item_attractiveness": item_attractiveness,
+        "category_preferences": category_preferences,
+        "idiosyncratic_noise": idiosyncratic_noise,
+        "category_ids": category_ids,
+        "category_names": np.asarray(category_names, dtype=object),
+        "user_biases": bias_vector,
+    }
+
+
+def split_revised_user_observations(
+    ratings: np.ndarray,
+    rng: np.random.Generator,
+    *,
+    user_idx: int = 0,
+    n_train: int = 30,
+) -> Tuple[np.ndarray, List[int], List[int]]:
+    """Create a deterministic random train/test observation mask for one user."""
+    if ratings.ndim != 2 or not 0 <= user_idx < ratings.shape[0]:
+        raise ValueError("ratings must be 2D and user_idx must be valid")
+    if not 0 < n_train < ratings.shape[1]:
+        raise ValueError("n_train must be between zero and the number of items")
+
+    train_ids = sorted(
+        int(item_id)
+        for item_id in rng.choice(ratings.shape[1], size=n_train, replace=False)
+    )
+    train_set = set(train_ids)
+    test_ids = [
+        item_id for item_id in range(ratings.shape[1]) if item_id not in train_set
+    ]
+    observed_mask = np.ones(ratings.shape, dtype=bool)
+    observed_mask[user_idx, test_ids] = False
+    return observed_mask, train_ids, test_ids
 
 
 def save_dataset(

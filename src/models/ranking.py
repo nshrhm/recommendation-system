@@ -8,7 +8,7 @@ References:
 """
 
 import numpy as np
-from typing import Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple
 
 
 def scores_to_ranking(scores: np.ndarray, descending: bool = True) -> np.ndarray:
@@ -259,3 +259,53 @@ def get_top_k_items(
     top_k = [(int(valid_indices[i]), float(valid_points[i])) for i in top_k_idx]
 
     return top_k
+
+
+def deterministic_score_order(item_ids: np.ndarray, scores: np.ndarray) -> np.ndarray:
+    """Order item IDs by descending score and then ascending item ID."""
+    item_ids = np.asarray(item_ids, dtype=np.int64)
+    scores = np.asarray(scores, dtype=np.float64)
+    if item_ids.ndim != 1 or scores.ndim != 1 or item_ids.shape != scores.shape:
+        raise ValueError("item_ids and scores must be one-dimensional and aligned")
+    if len(np.unique(item_ids)) != len(item_ids):
+        raise ValueError("item_ids must be unique")
+    order = np.lexsort((item_ids, -scores))
+    return item_ids[order]
+
+
+def interactive_impression_rerank(
+    initial_order: np.ndarray,
+    displayed_top_n: int,
+    feedback_by_item: Dict[int, float],
+) -> Dict[str, np.ndarray]:
+    """Post-feedback reranking of only the displayed prefix.
+
+    Equal feedback values preserve the previous Hybrid-CF order. The
+    undisplayed suffix is returned byte-for-byte in its original order.
+    """
+    initial_order = np.asarray(initial_order, dtype=np.int64)
+    if initial_order.ndim != 1 or len(np.unique(initial_order)) != len(initial_order):
+        raise ValueError("initial_order must contain unique one-dimensional item IDs")
+    if not 0 < displayed_top_n <= len(initial_order):
+        raise ValueError("displayed_top_n must be within the ranking length")
+
+    displayed = initial_order[:displayed_top_n]
+    if set(feedback_by_item) != set(int(item_id) for item_id in displayed):
+        raise ValueError("feedback must be supplied for exactly the displayed items")
+    feedback = np.asarray(
+        [feedback_by_item[int(item_id)] for item_id in displayed], dtype=np.float64
+    )
+    previous_positions = np.arange(displayed_top_n)
+    reorder = np.lexsort((previous_positions, -feedback))
+    reranked_displayed = displayed[reorder]
+    final_order = np.concatenate([reranked_displayed, initial_order[displayed_top_n:]])
+
+    return {
+        "initial_order": initial_order.copy(),
+        "displayed_ids": displayed.copy(),
+        "displayed_feedback": feedback.copy(),
+        "final_order": final_order,
+        "changed_positions": np.asarray(
+            np.count_nonzero(final_order != initial_order), dtype=np.int64
+        ),
+    }

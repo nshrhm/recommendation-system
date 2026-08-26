@@ -194,6 +194,69 @@ def ndcg_at_k(
     return ndcg
 
 
+def ndcg_from_order(
+    item_order: np.ndarray,
+    relevance_by_item: np.ndarray,
+    candidate_item_ids: np.ndarray,
+    k: Optional[int] = None,
+) -> float:
+    """Calculate linear-gain NDCG from an explicit item ordering."""
+    item_order = np.asarray(item_order, dtype=np.int64)
+    relevance_by_item = np.asarray(relevance_by_item, dtype=np.float64)
+    candidates = np.asarray(candidate_item_ids, dtype=np.int64)
+    if item_order.ndim != 1 or candidates.ndim != 1:
+        raise ValueError("item_order and candidate_item_ids must be one-dimensional")
+    if len(item_order) != len(candidates) or set(item_order) != set(candidates):
+        raise ValueError("item_order must be a permutation of candidate_item_ids")
+    if np.any(item_order < 0) or np.any(item_order >= len(relevance_by_item)):
+        raise ValueError("item_order contains an invalid item ID")
+
+    ordered_relevance = relevance_by_item[item_order]
+    candidate_relevance = relevance_by_item[candidates]
+    dcg = dcg_at_k(ordered_relevance, k)
+    idcg = dcg_at_k(np.sort(candidate_relevance)[::-1], k)
+    return 0.0 if idcg == 0 else float(dcg / idcg)
+
+
+def evaluate_ranking_order(
+    item_order: np.ndarray,
+    relevance_by_item: np.ndarray,
+    candidate_item_ids: np.ndarray,
+    k_values: List[int] = [5, 10, 20],
+) -> dict:
+    """Evaluate only graded ranking metrics for an explicit ranking."""
+    return {
+        f"ndcg@{k}": ndcg_from_order(
+            item_order, relevance_by_item, candidate_item_ids, k=k
+        )
+        for k in k_values
+    }
+
+
+def evaluate_native_score_method(
+    item_ids: np.ndarray,
+    predictions: np.ndarray,
+    relevance_by_item: np.ndarray,
+    k_values: List[int] = [5, 10, 20],
+) -> dict:
+    """Evaluate native 0-10 predictions without binary ranking metrics."""
+    item_ids = np.asarray(item_ids, dtype=np.int64)
+    predictions = np.asarray(predictions, dtype=np.float64)
+    if item_ids.shape != predictions.shape:
+        raise ValueError("item_ids and predictions must have matching shapes")
+    truth = np.asarray(relevance_by_item, dtype=np.float64)[item_ids]
+    order_positions = np.lexsort((item_ids, -predictions))
+    item_order = item_ids[order_positions]
+    metrics = {
+        "rmse": float(rmse(predictions, truth)),
+        "mae": float(mae(predictions, truth)),
+    }
+    metrics.update(
+        evaluate_ranking_order(item_order, relevance_by_item, item_ids, k_values)
+    )
+    return metrics
+
+
 def precision_at_k(
     predictions: np.ndarray, ground_truth: np.ndarray, k: int, threshold: float = 0.5
 ) -> float:

@@ -67,7 +67,11 @@ jobs:
 
       - name: Check code formatting with Black
         run: |
-          black --check src/ tests/
+          # Preserve historical formatting in three legacy paper-result helpers;
+          # all revised experiment paths remain under the formatting gate.
+          black --check \
+            --exclude 'src/(utils/verify_results_to_paper|visualization/(plot_normalized_rmse|regenerate_all_paper_figures))\.py' \
+            src/ tests/
 
       - name: Lint with flake8
         run: |
@@ -82,6 +86,9 @@ jobs:
   experiments:
     runs-on: ubuntu-latest
     needs: test
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
 
     steps:
       - name: Checkout code
@@ -90,7 +97,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -99,50 +106,24 @@ jobs:
 
       - name: Run experiments
         run: |
-          python src/experiments/run_all_experiments.py --no-mlflow --seed 42
+          python -m src.experiments.run_revised_experiment \
+            --config configs/revised_experiment.json \
+            --output /tmp/revised_results.json
 
-      - name: Upload experiment results
-        uses: actions/upload-artifact@v4
-        with:
-          name: experiment-results
-          path: |
-            results/comparison_report.txt
-            results/figures/*.pdf
-
-      - name: Check results consistency
+      - name: Verify canonical scientific payload
         run: |
-          echo "Checking if experiments produced valid results..."
-          python << 'EOF'
+          python -m src.utils.verify_revised_results \
+            --config configs/revised_experiment.json \
+            --result /tmp/revised_results.json
+          python - <<'PY'
           import json
-          import os
           from pathlib import Path
 
-          # Find the most recent baseline results
-          results_dir = Path("results")
-          baseline_dirs = sorted([d for d in results_dir.glob("baseline_*") if d.is_dir()])
-
-          if not baseline_dirs:
-              print("Warning: No baseline results found, skipping consistency check")
-              exit(0)
-
-          latest_baseline = baseline_dirs[-1]
-          metrics_file = latest_baseline / "metrics.json"
-
-          if not metrics_file.exists():
-              print(f"Warning: No metrics.json in {latest_baseline}, skipping check")
-              exit(0)
-
-          with open(metrics_file) as f:
-              data = json.load(f)
-              # Handle both nested and flat metric structures
-              metrics = data.get("metrics", data)
-
-              if "rmse" in metrics:
-                  rmse = metrics["rmse"]
-                  print(f"✓ Baseline RMSE: {rmse:.4f}")
-                  # Sanity check: RMSE should be reasonable (not NaN, not too large)
-                  assert 0 < rmse < 100, f"RMSE out of expected range: {rmse}"
-                  print("✓ Results are consistent!")
-              else:
-                  print("Warning: No RMSE metric found, skipping validation")
-          EOF
+          generated = json.loads(Path('/tmp/revised_results.json').read_text())
+          canonical = json.loads(
+              Path('results/revised_experiment/canonical_results.json').read_text()
+          )
+          assert generated['scientific_payload_sha256'] == canonical['scientific_payload_sha256']
+          assert generated['scientific_payload'] == canonical['scientific_payload']
+          print('Canonical scientific payload reproduced exactly.')
+          PY

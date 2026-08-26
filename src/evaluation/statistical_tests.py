@@ -419,6 +419,88 @@ def bootstrap_confidence_interval(
     return mean, lower_bound, upper_bound
 
 
+def revised_wilcoxon_signed_rank(differences: np.ndarray) -> Dict[str, object]:
+    """Frozen paired Wilcoxon configuration for the revised experiment."""
+    differences = np.asarray(differences, dtype=np.float64)
+    if differences.ndim != 1 or differences.size == 0:
+        raise ValueError("differences must be a non-empty one-dimensional array")
+    all_zero = bool(np.all(differences == 0.0))
+    if all_zero:
+        return {
+            "statistic": 0.0,
+            "p_value": 1.0,
+            "all_zero": True,
+            "n": int(differences.size),
+        }
+    result = stats.wilcoxon(
+        differences,
+        zero_method="pratt",
+        alternative="two-sided",
+        method="approx",
+        correction=False,
+    )
+    return {
+        "statistic": float(result.statistic),
+        "p_value": float(result.pvalue),
+        "all_zero": False,
+        "n": int(differences.size),
+    }
+
+
+def holm_adjust(p_values: Dict[str, float], alpha: float = 0.05) -> Dict[str, dict]:
+    """Apply Holm's step-down familywise correction to named p-values."""
+    if not p_values:
+        raise ValueError("p_values must not be empty")
+    ordered = sorted(p_values.items(), key=lambda item: (item[1], item[0]))
+    family_size = len(ordered)
+    running_max = 0.0
+    adjusted = {}
+    still_rejecting = True
+    for rank, (name, raw_p) in enumerate(ordered):
+        if not 0.0 <= raw_p <= 1.0:
+            raise ValueError("p-values must be between zero and one")
+        multiplier = family_size - rank
+        running_max = max(running_max, multiplier * raw_p)
+        threshold = alpha / multiplier
+        reject = still_rejecting and raw_p <= threshold
+        if not reject:
+            still_rejecting = False
+        adjusted[name] = {
+            "raw_p": float(raw_p),
+            "adjusted_p": float(min(1.0, running_max)),
+            "reject": bool(reject),
+            "holm_rank": rank + 1,
+            "threshold": float(threshold),
+        }
+    return {name: adjusted[name] for name in p_values}
+
+
+def percentile_bootstrap_summary(
+    values: np.ndarray,
+    rng: np.random.Generator,
+    n_bootstrap: int = 10000,
+    confidence_level: float = 0.95,
+) -> Dict[str, object]:
+    """Bootstrap the mean of independent replicate-level values."""
+    values = np.asarray(values, dtype=np.float64)
+    if values.ndim != 1 or values.size == 0:
+        raise ValueError("values must be a non-empty one-dimensional array")
+    indices = rng.integers(0, values.size, size=(n_bootstrap, values.size))
+    bootstrap_means = values[indices].mean(axis=1)
+    alpha = 1.0 - confidence_level
+    lower, upper = np.quantile(bootstrap_means, [alpha / 2.0, 1.0 - alpha / 2.0])
+    return {
+        "mean": float(values.mean()),
+        "median": float(np.median(values)),
+        "std": float(values.std(ddof=1)) if values.size > 1 else 0.0,
+        "ci_lower": float(lower),
+        "ci_upper": float(upper),
+        "confidence_level": float(confidence_level),
+        "bootstrap_samples": int(n_bootstrap),
+        "n": int(values.size),
+    }
+
+
 if __name__ == "__main__":
     # Example usage
     print("Statistical Testing Module for Recommendation Systems")
