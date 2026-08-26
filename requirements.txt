@@ -1,7 +1,7 @@
 # Core Data Science Libraries
 numpy>=1.24.0,<2.0.0
 pandas>=2.0.0,<3.0.0
-scipy>=1.11.0,<2.0.0
+scipy==1.17.1
 
 # Recommendation System Libraries
 scikit-surprise>=1.1.3

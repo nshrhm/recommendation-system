@@ -358,6 +358,82 @@ class PreferenceVectorManager:
         else:
             self.store(user_id, new_preference_vector)
 
+
+def select_positive_similarity_neighbors(
+    similarity_row: np.ndarray,
+    candidate_item_ids: np.ndarray,
+    k: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Select up to k positive-similarity items with deterministic ties."""
+    similarities = np.asarray(similarity_row, dtype=np.float64)
+    candidates = np.asarray(candidate_item_ids, dtype=np.int64)
+    if candidates.ndim != 1 or k <= 0:
+        raise ValueError("candidate_item_ids must be 1D and k must be positive")
+    weights = np.maximum(similarities[candidates], 0.0)
+    positive = weights > 0
+    candidates = candidates[positive]
+    weights = weights[positive]
+    if candidates.size == 0:
+        return candidates, weights
+    order = np.lexsort((candidates, -weights))
+    selected = order[:k]
+    return candidates[selected], weights[selected]
+
+
+def propagate_preference_residuals(
+    residuals: np.ndarray,
+    rated_item_ids: np.ndarray,
+    test_item_ids: np.ndarray,
+    item_similarity: np.ndarray,
+    k: int = 5,
+) -> Dict[str, object]:
+    """Propagate observed-item residuals to unseen items by item similarity."""
+    residuals = np.asarray(residuals, dtype=np.float64)
+    rated_item_ids = np.asarray(rated_item_ids, dtype=np.int64)
+    test_item_ids = np.asarray(test_item_ids, dtype=np.int64)
+    if residuals.shape != rated_item_ids.shape:
+        raise ValueError("residuals and rated_item_ids must have matching shapes")
+
+    residual_by_item = {
+        int(item_id): float(value) for item_id, value in zip(rated_item_ids, residuals)
+    }
+    propagated = np.zeros(len(test_item_ids), dtype=np.float64)
+    neighbor_records: List[Dict[str, object]] = []
+    fallback_count = 0
+    effective_counts = np.zeros(len(test_item_ids), dtype=np.int64)
+
+    for position, test_item in enumerate(test_item_ids):
+        neighbors, weights = select_positive_similarity_neighbors(
+            item_similarity[int(test_item)], rated_item_ids, k
+        )
+        weight_sum = float(weights.sum())
+        if len(neighbors) == 0 or weight_sum == 0.0:
+            fallback_count += 1
+            value = 0.0
+        else:
+            neighbor_residuals = np.asarray(
+                [residual_by_item[int(item_id)] for item_id in neighbors],
+                dtype=np.float64,
+            )
+            value = float(np.dot(weights, neighbor_residuals) / weight_sum)
+        propagated[position] = value
+        effective_counts[position] = len(neighbors)
+        neighbor_records.append(
+            {
+                "test_item_id": int(test_item),
+                "neighbor_ids": [int(item_id) for item_id in neighbors],
+                "weights": [float(weight) for weight in weights],
+                "propagated_residual": value,
+            }
+        )
+
+    return {
+        "propagated_residuals": propagated,
+        "neighbors": neighbor_records,
+        "fallback_count": fallback_count,
+        "effective_neighbor_counts": effective_counts,
+    }
+
     def clear(self, user_id: Optional[str] = None) -> None:
         """
         Clear preference vectors.
