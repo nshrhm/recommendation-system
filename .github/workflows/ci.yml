@@ -126,3 +126,11 @@ jobs:
           assert generated['scientific_payload'] == canonical['scientific_payload']
           print('Canonical scientific payload reproduced exactly.')
           PY
+
+      - name: Upload generated payload for mismatch diagnosis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: revised-results-${{ github.sha }}
+          path: /tmp/revised_results.json
+          if-no-files-found: error
