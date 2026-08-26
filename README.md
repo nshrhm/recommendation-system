@@ -40,8 +40,7 @@ venv/bin/python -m src.experiments.run_revised_experiment \
   --output results/revised_experiment/canonical_results.json
 ```
 
-Verify the canonical artifact, including deterministic regeneration of its
-scientific payload:
+Verify the canonical artifact and reproduce its scientific results:
 
 ```bash
 venv/bin/python -m src.utils.verify_revised_results \
@@ -49,6 +48,14 @@ venv/bin/python -m src.utils.verify_revised_results \
   --result results/revised_experiment/canonical_results.json \
   --reproduce
 ```
+
+The committed canonical artifact retains exact internal SHA-256 integrity.
+Cross-platform reproduction separately requires exact agreement for discrete
+scientific invariants (including configuration, RNG metadata, dataset and split
+hashes, rankings, neighbor IDs, counts, and decisions), while derived finite
+floating-point values use narrow fixed tolerances (`atol=1e-14`, `rtol=1e-11`)
+to accommodate normal hardware-level IEEE-754 roundoff. The canonical artifact
+and its SHA-256 are not changed by this comparison.
 
 Generate the revised figures from the verified canonical artifact:
 

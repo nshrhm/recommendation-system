@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from src.experiments.run_revised_experiment import (
     build_scientific_payload,
@@ -14,12 +17,188 @@ from src.experiments.run_revised_experiment import (
 )
 
 
+SCIENTIFIC_FLOAT_ATOL = 1e-14
+SCIENTIFIC_FLOAT_RTOL = 1e-11
+MAX_MISMATCH_DETAILS = 20
+
+
+@dataclass(frozen=True)
+class ScientificComparison:
+    """Result of comparing two scientific payloads across environments."""
+
+    mismatch_count: int
+    mismatch_details: List[str]
+    bitwise_match: bool
+    max_observed_float_abs_diff: float
+    max_observed_float_rel_diff: float
+
+    @property
+    def equivalent(self) -> bool:
+        return self.mismatch_count == 0
+
+
+def _requires_exact_value(path: str) -> bool:
+    """Return whether a scientific value is a frozen discrete invariant."""
+    if path in {
+        "$.schema_version",
+        "$.config_hash",
+        "$.source_fingerprint",
+    } or path.startswith("$.config"):
+        return True
+    if path.startswith("$.rng") or re.match(r"^\$\.replicates\[\d+\]\.rng", path):
+        return True
+    if re.match(
+        r"^\$\.replicates\[\d+\]\.(replicate_id|dataset_hash|split_hash|train_ids|test_ids)",
+        path,
+    ):
+        return True
+    if re.match(
+        r"^\$\.replicates\[\d+\]\.noise_conditions\.[^.]+\.f1\."
+        r"(initial_order|displayed_ids|final_order|changed_positions|output_type)",
+        path,
+    ):
+        return True
+    if re.match(
+        r"^\$\.replicates\[\d+\]\.noise_conditions\.[^.]+\.f2\."
+        r"(fallback_count|effective_neighbor_counts)",
+        path,
+    ):
+        return True
+    if re.match(
+        r"^\$\.replicates\[\d+\]\.noise_conditions\.[^.]+\.f2\."
+        r"selected_neighbors\[\d+\]\.(test_item_id|neighbor_ids)",
+        path,
+    ):
+        return True
+    return path.startswith("$.holm_family")
+
+
+def compare_scientific_payloads(
+    reference: Any,
+    candidate: Any,
+    *,
+    max_details: int = MAX_MISMATCH_DETAILS,
+) -> ScientificComparison:
+    """Compare scientific payloads exactly except for derived finite floats."""
+    mismatch_count = 0
+    details: List[str] = []
+    max_abs_diff = 0.0
+    max_rel_diff = 0.0
+
+    def mismatch(
+        path: str, reference_value: Any, candidate_value: Any, kind: str
+    ) -> None:
+        nonlocal mismatch_count
+        mismatch_count += 1
+        if len(details) < max_details:
+            details.append(
+                f"{path}: {kind}; reference={reference_value!r}; "
+                f"candidate={candidate_value!r}"
+            )
+
+    def walk(reference_value: Any, candidate_value: Any, path: str) -> None:
+        nonlocal max_abs_diff, max_rel_diff
+        if type(reference_value) is not type(candidate_value):
+            mismatch(
+                path,
+                reference_value,
+                candidate_value,
+                "type mismatch "
+                f"({type(reference_value).__name__} != "
+                f"{type(candidate_value).__name__})",
+            )
+            return
+        if isinstance(reference_value, dict):
+            if set(reference_value) != set(candidate_value):
+                mismatch(
+                    path,
+                    sorted(reference_value),
+                    sorted(candidate_value),
+                    "dictionary key-set mismatch",
+                )
+                return
+            for key in reference_value:
+                walk(reference_value[key], candidate_value[key], f"{path}.{key}")
+            return
+        if isinstance(reference_value, list):
+            if len(reference_value) != len(candidate_value):
+                mismatch(
+                    path,
+                    len(reference_value),
+                    len(candidate_value),
+                    "list-length mismatch",
+                )
+                return
+            for index, (reference_item, candidate_item) in enumerate(
+                zip(reference_value, candidate_value)
+            ):
+                walk(reference_item, candidate_item, f"{path}[{index}]")
+            return
+        if isinstance(reference_value, float):
+            if not math.isfinite(reference_value) or not math.isfinite(candidate_value):
+                mismatch(
+                    path,
+                    reference_value,
+                    candidate_value,
+                    "non-finite float",
+                )
+                return
+            absolute = abs(candidate_value - reference_value)
+            relative = absolute / max(
+                abs(reference_value), abs(candidate_value), 1e-300
+            )
+            max_abs_diff = max(max_abs_diff, absolute)
+            max_rel_diff = max(max_rel_diff, relative)
+            exact = _requires_exact_value(path)
+            close = math.isclose(
+                candidate_value,
+                reference_value,
+                rel_tol=SCIENTIFIC_FLOAT_RTOL,
+                abs_tol=SCIENTIFIC_FLOAT_ATOL,
+            )
+            if (exact and candidate_value != reference_value) or (
+                not exact and not close
+            ):
+                kind = (
+                    "exact invariant float mismatch"
+                    if exact
+                    else "float tolerance exceeded"
+                )
+                mismatch(
+                    path,
+                    reference_value,
+                    candidate_value,
+                    f"{kind}; abs_diff={absolute}; rel_diff={relative}; "
+                    f"atol={SCIENTIFIC_FLOAT_ATOL}; rtol={SCIENTIFIC_FLOAT_RTOL}",
+                )
+            return
+        if candidate_value != reference_value:
+            mismatch(path, reference_value, candidate_value, "exact value mismatch")
+
+    walk(reference, candidate, "$")
+    return ScientificComparison(
+        mismatch_count=mismatch_count,
+        mismatch_details=details,
+        bitwise_match=sha256_json(reference) == sha256_json(candidate),
+        max_observed_float_abs_diff=max_abs_diff,
+        max_observed_float_rel_diff=max_rel_diff,
+    )
+
+
+def _load_document(path: Path) -> dict:
+    with path.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
 def verify_results(
-    config_path: Path, result_path: Path, reproduce: bool = False
+    config_path: Path,
+    result_path: Path,
+    reproduce: bool = False,
+    reference_path: Path | None = None,
+    _comparisons: List[ScientificComparison] | None = None,
 ) -> List[str]:
     config = load_config(config_path)
-    with result_path.open(encoding="utf-8") as handle:
-        document = json.load(handle)
+    document = _load_document(result_path)
     errors: List[str] = []
 
     if set(document) != {
@@ -174,10 +353,30 @@ def verify_results(
     if reproduce and not errors:
         repo_root = Path(__file__).resolve().parents[2]
         regenerated = build_scientific_payload(config, repo_root)
-        if sha256_json(regenerated) != sha256_json(payload):
+        comparison = compare_scientific_payloads(payload, regenerated)
+        if _comparisons is not None:
+            _comparisons.append(comparison)
+        if not comparison.equivalent:
             errors.append(
-                "regenerated scientific payload differs from canonical payload"
+                f"scientific payload mismatch count: {comparison.mismatch_count}"
             )
+            errors.extend(comparison.mismatch_details)
+    if reference_path is not None and not errors:
+        reference_errors = verify_results(config_path, reference_path)
+        if reference_errors:
+            errors.extend(f"reference: {error}" for error in reference_errors)
+        else:
+            reference_document = _load_document(reference_path)
+            comparison = compare_scientific_payloads(
+                reference_document["scientific_payload"], payload
+            )
+            if _comparisons is not None:
+                _comparisons.append(comparison)
+            if not comparison.equivalent:
+                errors.append(
+                    f"scientific payload mismatch count: {comparison.mismatch_count}"
+                )
+                errors.extend(comparison.mismatch_details)
     return errors
 
 
@@ -191,15 +390,31 @@ def main() -> int:
         type=Path,
         default=Path("results/revised_experiment/canonical_results.json"),
     )
-    parser.add_argument("--reproduce", action="store_true")
+    comparison_mode = parser.add_mutually_exclusive_group()
+    comparison_mode.add_argument("--reproduce", action="store_true")
+    comparison_mode.add_argument("--reference", type=Path)
     args = parser.parse_args()
-    errors = verify_results(args.config, args.result, reproduce=args.reproduce)
+    comparisons: List[ScientificComparison] = []
+    errors = verify_results(
+        args.config,
+        args.result,
+        reproduce=args.reproduce,
+        reference_path=args.reference,
+        _comparisons=comparisons,
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
     print("VERIFICATION=PASS")
     print(f"REPRODUCED={'yes' if args.reproduce else 'no'}")
+    if args.reproduce or args.reference is not None:
+        comparison = comparisons[0]
+        print("SCIENTIFIC_EQUIVALENCE=PASS")
+        print(f"BITWISE_PAYLOAD_MATCH={'yes' if comparison.bitwise_match else 'no'}")
+        print(f"FLOAT_ATOL={SCIENTIFIC_FLOAT_ATOL}")
+        print(f"FLOAT_RTOL={SCIENTIFIC_FLOAT_RTOL}")
+        print(f"MAX_OBSERVED_FLOAT_ABS_DIFF={comparison.max_observed_float_abs_diff}")
     return 0
 
 

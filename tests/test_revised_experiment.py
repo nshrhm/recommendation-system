@@ -1,5 +1,7 @@
 """Scientific-integrity regression tests for the frozen revised experiment."""
 
+import json
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
@@ -45,7 +47,12 @@ from src.models.ranking import (
     deterministic_score_order,
     interactive_impression_rerank,
 )
-from src.utils.verify_revised_results import verify_results
+from src.utils.verify_revised_results import (
+    SCIENTIFIC_FLOAT_ATOL,
+    SCIENTIFIC_FLOAT_RTOL,
+    compare_scientific_payloads,
+    verify_results,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -375,3 +382,99 @@ def test_tracked_canonical_artifact_passes_static_verification():
     result_path = REPO_ROOT / "results/revised_experiment/canonical_results.json"
     assert result_path.exists()
     assert verify_results(CONFIG_PATH, result_path, reproduce=False) == []
+
+
+@pytest.fixture(scope="module")
+def canonical_document():
+    result_path = REPO_ROOT / "results/revised_experiment/canonical_results.json"
+    return json.loads(result_path.read_text(encoding="utf-8"))
+
+
+def test_scientific_comparison_accepts_exact_payload(canonical_document):
+    payload = canonical_document["scientific_payload"]
+    comparison = compare_scientific_payloads(payload, deepcopy(payload))
+    assert comparison.equivalent
+    assert comparison.bitwise_match
+    assert SCIENTIFIC_FLOAT_ATOL == 1e-14
+    assert SCIENTIFIC_FLOAT_RTOL == 1e-11
+
+
+def test_scientific_comparison_accepts_measured_float_drift(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    candidate["replicates"][0]["base_methods"]["ucf"]["predictions"][0] += 2e-15
+    comparison = compare_scientific_payloads(reference, candidate)
+    assert comparison.equivalent
+    assert not comparison.bitwise_match
+
+
+def test_scientific_comparison_rejects_above_tolerance_drift(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    candidate["replicates"][0]["base_methods"]["ucf"]["predictions"][0] += 1e-8
+    comparison = compare_scientific_payloads(reference, candidate)
+    assert not comparison.equivalent
+    assert "float tolerance exceeded" in comparison.mismatch_details[0]
+
+
+@pytest.mark.parametrize("field", ["dataset_hash", "split_hash"])
+def test_scientific_comparison_rejects_identity_hash_mutation(
+    canonical_document, field
+):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    candidate["replicates"][0][field] = "0" * 64
+    assert not compare_scientific_payloads(reference, candidate).equivalent
+
+
+def test_scientific_comparison_rejects_f1_ranking_mutation(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    order = candidate["replicates"][0]["noise_conditions"]["0.0"]["f1"]["final_order"]
+    order[0], order[1] = order[1], order[0]
+    assert not compare_scientific_payloads(reference, candidate).equivalent
+
+
+def test_scientific_comparison_rejects_f2_neighbor_mutation(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    neighbors = candidate["replicates"][0]["noise_conditions"]["0.0"]["f2"][
+        "selected_neighbors"
+    ][0]["neighbor_ids"]
+    neighbors[0] = 999
+    assert not compare_scientific_payloads(reference, candidate).equivalent
+
+
+def test_scientific_comparison_rejects_holm_decision_mutation(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    candidate["primary_tests"]["C1"]["holm_reject"] = not candidate["primary_tests"][
+        "C1"
+    ]["holm_reject"]
+    assert not compare_scientific_payloads(reference, candidate).equivalent
+
+
+def test_scientific_comparison_requires_exact_embedded_config(canonical_document):
+    reference = canonical_document["scientific_payload"]
+    candidate = deepcopy(reference)
+    candidate["config"]["feedback_sigmas"][0] += 2e-15
+    comparison = compare_scientific_payloads(reference, candidate)
+    assert not comparison.equivalent
+    assert "exact invariant float mismatch" in comparison.mismatch_details[0]
+
+
+def test_scientific_comparison_ignores_provenance(canonical_document):
+    reference = deepcopy(canonical_document)
+    candidate = deepcopy(canonical_document)
+    candidate["provenance"].update(
+        {
+            "utc_timestamp": "2099-01-01T00:00:00+00:00",
+            "git_head": "different",
+            "platform": "different",
+        }
+    )
+    comparison = compare_scientific_payloads(
+        reference["scientific_payload"], candidate["scientific_payload"]
+    )
+    assert comparison.equivalent
+    assert comparison.bitwise_match
