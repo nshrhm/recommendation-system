@@ -65,6 +65,32 @@ venv/bin/python -m src.visualization.plot_revised_experiment \
   --output-dir results/revised_experiment/figures
 ```
 
+Generate separate Japanese-labeled figures without overwriting the default
+English outputs:
+
+```bash
+venv/bin/python -m src.visualization.plot_revised_experiment \
+  --result results/revised_experiment/canonical_results.json \
+  --output-dir results/revised_experiment/figures \
+  --language ja
+```
+
+Generate separate monochrome figures for grayscale printing and Word insertion:
+
+```bash
+venv/bin/python -m src.visualization.plot_revised_experiment \
+  --result results/revised_experiment/canonical_results.json \
+  --output-dir results/revised_experiment/figures \
+  --style monochrome
+```
+
+The `_monochrome.pdf` and `_monochrome.png` outputs retain the color export's
+page/pixel dimensions, data, confidence intervals, axes, and labels. Line styles
+and markers identify the methods; larger text targets approximately 7 pt at the
+revised Word manuscript's 87.5 mm insertion width. The default `--style color`
+is unchanged. Combining `--language ja --style monochrome` uses the separate
+`_ja_monochrome` suffix. No experiment rerun or manuscript replacement is needed.
+
 Only the compact canonical result JSON is tracked. Reproduced artifacts and
 figures are generated locally and remain ignored.
 
